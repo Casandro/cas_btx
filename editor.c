@@ -66,7 +66,7 @@ editor_t *editor_create(FILE *in, terminal_t *t, char *fn)
 			editor_free(e);
 			return NULL;
 		}
-	}
+	} else fprintf(stderr, "editor_create could not open %s\n", e->filename);
 	e->term=t;
 	return e;
 }
@@ -254,12 +254,17 @@ int editor_load_or_edit(FILE *in, editor_t *e)
 	}
 	if (e->term!=NULL) term_get_talking(e->term);
 	fprintf(stderr, "editor_load_or_edit\n");
+	int charactercount=0;
 	character_t lc=0; //Last inserted character
 	while (!feof(in)) {
 		int n;
 		editor_update_status(in, e);
 		character_t c=char_read(in);
-		if (c<0) return 0;
+		if (c<0) {
+			fprintf(stderr, "editor_load_or_edit %d characters loaded\n", charactercount);
+			return 0;
+		}
+		charactercount=charactercount+1;
 		switch (c) {
 			case 0x08: //Active Position Backwards
 				editor_move_cursor(e, -1);

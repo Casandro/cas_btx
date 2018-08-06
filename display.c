@@ -7,42 +7,18 @@
 
 editor_t *load_links(const char *dir, const char *pn)
 {
-	fprintf(stderr, "load_links\n");
 	char lnkf[256];
 	snprintf(lnkf, sizeof(lnkf), "%s/%s.lnk", dir, pn);
+	fprintf(stderr, "load_links %s\n",lnkf);
 	editor_t *e=editor_create(NULL, NULL, lnkf);
 	return e;
 }
 
 
+
 int find_lnk(const char *inp, editor_t *e, char *next)
 {
-	int n;
-	for (n=0; n<EDITOR_SIZE; n++) {
-		int l=strlen(inp);
-		int fnd=1;
-		int m;
-		for (m=0; m<l; m++) {
-			if (e->doc.cells[(n+m)%EDITOR_SIZE]!=inp[m]) {
-				fnd=0;
-				break;
-			}
-		}
-		if ((fnd!=0) && (e->doc.cells[(n+l)%EDITOR_SIZE]!='>')) {
-			int ps=0;
-			int p=(n+l+1)%EDITOR_SIZE;
-			while (1==1) {
-				character_t c=e->doc.cells[p];
-				p=(p+1)%EDITOR_SIZE;
-				if (c<'0') break;
-				if (c>'9') break;
-				next[ps]=c;
-				ps=ps+1;
-			}
-			next[ps]=0;
-			return 1;
-		}
-	}
+	next[0]=0;
 	return 0;
 }
 
@@ -61,7 +37,9 @@ int load_page(FILE *in, terminal_t *t, const char *dir, const char *pn, char *ne
 			fprintf(t->f, "%c", c);
 		}	
 		fclose(f);
-	}
+	} else return -2;
+//	term_set_string(t, 0, 1, "Anbieterkennung");
+	term_set_string(t, 0, 25, pn);
 	fprintf(t->f, "\x1a");
 	char inp[256];
 	memset(inp, 0, sizeof(inp));
@@ -70,12 +48,16 @@ int load_page(FILE *in, terminal_t *t, const char *dir, const char *pn, char *ne
 	while (c=fgetc(in)) {
 		int l=strlen(inp);
 		if ( (c==0x13) ) { //*
-			type=1; //first *
+			if (type==0) {
+				type=1; //first *
+			} else type=0;
 			inp[0]=0; //Delete input
 		} else
 		if ( (c==0x1c)) { //#
-			res=1;
-			strcpy(next, inp);
+			if (inp[0]!=0) {
+				res=1;
+				strcpy(next, inp);
+			} else res=-1;
 			inp[0]=0;
 			break;
 		} else {
@@ -83,8 +65,12 @@ int load_page(FILE *in, terminal_t *t, const char *dir, const char *pn, char *ne
 			inp[l+1]=0;
 		}
 		fprintf(stderr, "type=%d input=%s char=%02x\n", type, inp, c);
-		term_set_status(t, inp);
-		if (find_lnk(inp, e, next)!=0) {
+		char status[256];
+		status[0]=0;
+		if (type==1) strcat(status, "*");
+		strcat(status, inp);
+		term_set_status(t, status);
+		if ( (type==0) && (find_lnk(inp, e, next)!=0)) {
 			res=1;
 			break;
 		}
@@ -109,12 +95,18 @@ int browser(FILE *in, terminal_t *t, const char *dir)
 		fprintf(stderr,"pn=%s next=*%s#\n", pn, next);
 		if (res==1) {
 			if (strcmp(next,"9")==0) return 0; //ende
-			if (strcmp(next,"910")==0) editor_edit(in, t, dir);
+			if (strcmp(next,"910")==0) {
+				editor_edit(in, t, dir);
+				strcpy(next,"0");
+			}
 			strcpy(prev, pn);
 			strcpy(pn, next);
 		}
 		if (res==-1) {
 			strcpy(pn, prev);
+		}
+		if (res==-2) { //Page not found
+			strcpy(pn, "0");
 		}
 	}
 	return 0;
